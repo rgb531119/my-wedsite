@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>파란 공 게임</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #eee; font-family: sans-serif; }
+  canvas { display: block; background: #fff; margin: 0 auto; }
+
+  /* 모바일 버튼 */
+  #mobile-controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: grid;
+    grid-template-columns: 50px 50px 50px;
+    grid-template-rows: 50px 50px;
+    gap: 5px;
+    z-index: 100;
+  }
+  #up { grid-column: 2; grid-row: 1; }
+  #left { grid-column: 1; grid-row: 2; }
+  #down { grid-column: 2; grid-row: 2; }
+  #right { grid-column: 3; grid-row: 2; }
+  #mobile-controls button {
+    font-size: 24px;
+    padding: 10px;
+    background: #3498db;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="600" height="400"></canvas>
+
+<!-- 모바일용 버튼 -->
+<div id="mobile-controls" style="display:none;">
+  <button id="up">▲</button>
+  <button id="down">▼</button>
+  <button id="left">◀</button>
+  <button id="right">▶</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const player = { x: 300, y: 200, size: 20, speed: 5 };
+let keys = {};
+let obstacles = [];
+let score = 0;
+let gameOver = false;
+
+// 모바일 감지
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+if(isMobile){
+  document.getElementById('mobile-controls').style.display = 'grid';
+}
+
+// 키보드 이벤트 (PC용)
+if(!isMobile){
+  document.addEventListener('keydown', e => {
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+      keys[e.key] = true;
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+      keys[e.key] = false;
+    }
+  });
+}
+
+// 모바일 버튼 이벤트
+if(isMobile){
+  function simulateKey(key){
+    keys[key] = true;
+    setTimeout(()=>keys[key]=false,100);
+  }
+  document.getElementById('up').addEventListener('touchstart',()=>simulateKey('ArrowUp'));
+  document.getElementById('down').addEventListener('touchstart',()=>simulateKey('ArrowDown'));
+  document.getElementById('left').addEventListener('touchstart',()=>simulateKey('ArrowLeft'));
+  document.getElementById('right').addEventListener('touchstart',()=>simulateKey('ArrowRight'));
+}
+
+// 장애물 생성
+function spawnObstacle(){
+  const size = Math.random()*30 + 20;
+  const x = Math.random() * (canvas.width - size);
+  const y = -size;
+  const speed = Math.random()*2 + 1;
+  obstacles.push({ x, y, size, speed });
+}
+
+// 게임 업데이트
+function update(){
+  if(gameOver) return;
+
+  if(keys['ArrowUp']) player.y -= player.speed;
+  if(keys['ArrowDown']) player.y += player.speed;
+  if(keys['ArrowLeft']) player.x -= player.speed;
+  if(keys['ArrowRight']) player.x += player.speed;
+
+  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+
+  obstacles.forEach(ob => ob.y += ob.speed);
+
+  for(let ob of obstacles){
+    if(player.x < ob.x + ob.size && player.x + player.size > ob.x &&
+       player.y < ob.y + ob.size && player.y + player.size > ob.y){
+      gameOver = true;
+    }
+  }
+
+  obstacles = obstacles.filter(ob => ob.y < canvas.height);
+  score += 0.1;
+}
+
+// 화면 그리기
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 플레이어 (둥근 공)
+  ctx.fillStyle = 'blue';
+  ctx.beginPath();
+  ctx.arc(player.x + player.size/2, player.y + player.size/2, player.size/2, 0, Math.PI*2);
+  ctx.fill();
+
+  // 장애물
+  ctx.fillStyle = 'red';
+  obstacles.forEach(ob => ctx.fillRect(ob.x, ob.y, ob.size, ob.size));
+
+  // 점수
+  ctx.fillStyle = '#000';
+  ctx.font = '20px sans-serif';
+  ctx.fillText('Score: ' + Math.floor(score), 10, 30);
+
+  // 게임 오버
+  if(gameOver){
+    ctx.fillStyle = 'black';
+    ctx.font = '40px sans-serif';
+    ctx.fillText('GAME OVER', 150, 200);
+  }
+}
+
+// 장애물 주기적으로 생성
+setInterval(spawnObstacle, 1500);
+
+// 메인 루프
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

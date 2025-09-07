@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>공 게임</title>
+<style>
+  body {
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    font-family: sans-serif;
+    color: white;
+  }
+  canvas {
+    background: #222;
+    border: 4px solid #333;
+    border-radius: 8px;
+    margin-top: 20px;
+  }
+  #message {
+    margin-top: 10px;
+    font-size: 20px;
+  }
+  #restartBtn {
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-size: 16px;
+    background: #555;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: none;
+  }
+  #restartBtn:hover {
+    background: #777;
+  }
+</style>
+</head>
+<body>
+<h1>파란 공 게임</h1>
+<canvas id="game" width="800" height="600"></canvas>
+<div id="message"></div>
+<button id="restartBtn">다시 시작</button>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const messageEl = document.getElementById("message");
+const restartBtn = document.getElementById("restartBtn");
+
+const player = { x: 400, y: 300, radius: 15, speed: 200 };
+let obstacles = [];
+let goal = {};
+let goalVisible = true;
+const keys = {};
+
+let gameState = "play"; // play, win, lose
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min) + min);
+}
+
+function generateObstacles() {
+  obstacles = [];
+  let tries = 0;
+  while (obstacles.length < 7 && tries < 5000) {
+    const w = randInt(50, 100);
+    const h = randInt(50, 100);
+    const x = randInt(0, canvas.width - w);
+    const y = randInt(0, canvas.height - h);
+    const rect = { x, y, w, h };
+
+    let overlap = false;
+    for (let obs of obstacles) {
+      if (
+        x < obs.x + obs.w &&
+        x + w > obs.x &&
+        y < obs.y + obs.h &&
+        y + h > obs.y
+      ) {
+        overlap = true;
+        break;
+      }
+    }
+    if (
+      Math.abs(x + w / 2 - player.x) < w / 2 + player.radius + 20 &&
+      Math.abs(y + h / 2 - player.y) < h / 2 + player.radius + 20
+    ) {
+      overlap = true;
+    }
+    if (!overlap) {
+      obstacles.push(rect);
+    }
+    tries++;
+  }
+}
+
+function generateGoal() {
+  let valid = false;
+  while (!valid) {
+    const x = randInt(20, canvas.width - 20);
+    const y = randInt(20, canvas.height - 20);
+    valid = true;
+    for (let obs of obstacles) {
+      if (
+        x > obs.x - 20 &&
+        x < obs.x + obs.w + 20 &&
+        y > obs.y - 20 &&
+        y < obs.y + obs.h + 20
+      ) {
+        valid = false;
+        break;
+      }
+    }
+    if (valid) {
+      goal = { x, y, radius: 15 };
+      goalVisible = true;
+    }
+  }
+}
+
+function resetGame() {
+  player.x = 400;
+  player.y = 300;
+  generateObstacles();
+  generateGoal();
+  gameState = "play";
+  messageEl.textContent = "";
+  restartBtn.style.display = "none";
+}
+
+window.addEventListener("keydown", e => {
+  keys[e.key] = true;
+});
+window.addEventListener("keyup", e => {
+  keys[e.key] = false;
+});
+
+function update(dt) {
+  if (gameState !== "play") return;
+
+  let dx = 0, dy = 0;
+  if (keys.ArrowUp || keys.w) dy -= 1;
+  if (keys.ArrowDown || keys.s) dy += 1;
+  if (keys.ArrowLeft || keys.a) dx -= 1;
+  if (keys.ArrowRight || keys.d) dx += 1;
+  if (dx !== 0 || dy !== 0) {
+    const len = Math.hypot(dx, dy);
+    dx /= len;
+    dy /= len;
+    player.x += dx * player.speed * dt;
+    player.y += dy * player.speed * dt;
+  }
+
+  player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+  player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+
+  // 장애물 충돌 체크
+  for (let obs of obstacles) {
+    if (
+      player.x + player.radius > obs.x &&
+      player.x - player.radius < obs.x + obs.w &&
+      player.y + player.radius > obs.y &&
+      player.y - player.radius < obs.y + obs.h
+    ) {
+      gameState = "lose";
+      messageEl.textContent = "게임 오버";
+      restartBtn.style.display = "inline-block";
+    }
+  }
+
+  // 초록 공 닿으면
+  if (goalVisible) {
+    const dist = Math.hypot(player.x - goal.x, player.y - goal.y);
+    if (dist < player.radius + goal.radius) {
+      goalVisible = false; // 사라짐
+      gameState = "win";
+      messageEl.textContent = "이겼다!";
+      restartBtn.style.display = "inline-block";
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 장애물 그리기
+  ctx.fillStyle = "red";
+  for (let obs of obstacles) {
+    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+  }
+
+  // 초록 공은 보일 때만 그림
+  if (goalVisible) {
+    ctx.beginPath();
+    ctx.fillStyle = "green";
+    ctx.arc(goal.x, goal.y, goal.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 플레이어 그리기
+  ctx.beginPath();
+  ctx.fillStyle = "blue";
+  ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+let lastTime = performance.now();
+function loop(now) {
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+restartBtn.addEventListener("click", resetGame);
+
+resetGame();
+loop();
+</script>
+</body>
+</html>
